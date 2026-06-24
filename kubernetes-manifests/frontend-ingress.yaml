@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: boutique.13.127.18.166.nip.io
+  - host: boutique.13.200.162.246.nip.io
     http:
       paths:
       - path: /
