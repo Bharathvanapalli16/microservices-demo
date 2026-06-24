@@ -28,6 +28,8 @@ spec:
         app: cartservice
     spec:
       serviceAccountName: cartservice
+      imagePullSecrets:
+        - name: ecr-secret
       terminationGracePeriodSeconds: 5
       securityContext:
         fsGroup: 1000

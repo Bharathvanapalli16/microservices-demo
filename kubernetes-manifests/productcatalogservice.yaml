@@ -28,6 +28,8 @@ spec:
         app: productcatalogservice
     spec:
       serviceAccountName: productcatalogservice
+      imagePullSecrets:
+        - name: ecr-secret
       terminationGracePeriodSeconds: 5
       securityContext:
         fsGroup: 1000

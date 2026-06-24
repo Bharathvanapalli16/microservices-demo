@@ -28,6 +28,8 @@ spec:
         app: shippingservice
     spec:
       serviceAccountName: shippingservice
+      imagePullSecrets:
+        - name: ecr-secret
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000

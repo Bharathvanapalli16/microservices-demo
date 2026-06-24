@@ -28,6 +28,8 @@ spec:
         app: emailservice
     spec:
       serviceAccountName: emailservice
+      imagePullSecrets:
+        - name: ecr-secret
       terminationGracePeriodSeconds: 5
       securityContext:
         fsGroup: 1000

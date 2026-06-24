@@ -28,6 +28,8 @@ spec:
         app: paymentservice
     spec:
       serviceAccountName: paymentservice
+      imagePullSecrets:
+        - name: ecr-secret
       terminationGracePeriodSeconds: 5
       securityContext:
         fsGroup: 1000

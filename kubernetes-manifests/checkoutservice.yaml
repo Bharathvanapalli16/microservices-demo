@@ -28,6 +28,8 @@ spec:
         app: checkoutservice
     spec:
       serviceAccountName: checkoutservice
+      imagePullSecrets:
+        - name: ecr-secret
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000

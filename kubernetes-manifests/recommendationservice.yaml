@@ -28,6 +28,8 @@ spec:
         app: recommendationservice
     spec:
       serviceAccountName: recommendationservice
+      imagePullSecrets:
+        - name: ecr-secret
       terminationGracePeriodSeconds: 5
       securityContext:
         fsGroup: 1000
