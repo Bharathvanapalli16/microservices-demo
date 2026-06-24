@@ -46,6 +46,7 @@ const (
 )
 
 var (
+	// Currencies shown in the UI selector (must have a rate in currencyservice).
 	whitelistedCurrencies = map[string]bool{
 		"USD": true,
 		"EUR": true,

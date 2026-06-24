@@ -118,20 +118,16 @@ jobs:
         with:
           token: ${{ secrets.GITOPS_PAT }}   # PAT so the PR can satisfy branch protection
 
-      - name: Install kustomize
-        run: |
-          curl -sfL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/
-
-      - name: Bump image tags
+      - name: Bump image tags (yq)
+        env:
+          SHA: ${{ needs.detect.outputs.sha }}
         run: |
           cd kubernetes-manifests
           for svc in $(echo '${{ needs.detect.outputs.services }}' | jq -r '.[]'); do
-            kustomize edit set image \
-              "${ECR_REGISTRY}/${svc}=${ECR_REGISTRY}/${svc}:${{ needs.detect.outputs.sha }}"
+            yq -i "(.images[] | select(.name == \"${ECR_REGISTRY}/${svc}\")).newTag = \"${SHA}\"" kustomization.yaml
           done
           echo "----- resulting images: block -----"
-          sed -n '/^images:/,$p' kustomization.yaml
+          yq '.images' kustomization.yaml
 
       - name: Open auto-merge PR
         id: cpr
@@ -152,8 +148,11 @@ jobs:
             ArgoCD will sync once this is merged.
           labels: automated, deploy
 
-      - name: Enable auto-merge
+      - name: Merge write-back PR
         if: steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.GITOPS_PAT }}
-        run: gh pr merge --squash --auto "${{ steps.cpr.outputs.pull-request-number }}"
+          N: ${{ steps.cpr.outputs.pull-request-number }}
+        # Try auto-merge (waits for required checks); fall back to an immediate
+        # squash merge when the PR is already mergeable / auto-merge isn't required.
+        run: gh pr merge --squash --auto "$N" || gh pr merge --squash "$N"
