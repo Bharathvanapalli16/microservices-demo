@@ -13,6 +13,7 @@
 *.iml
 *.ipr
 *.iws
+*.pem
 *.pyc
 *.swp
 *.tfstate*
