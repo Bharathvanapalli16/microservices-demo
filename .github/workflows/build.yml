@@ -1,0 +1,159 @@
+name: build-and-deploy
+
+# Phase 2 (build/push) + Phase 3 (GitOps write-back) of docs/ci-cd-argocd.md.
+#
+# Flow: push to main touching src/** -> detect changed services -> build & push
+# each to ECR tagged with the short commit SHA -> bump the tag in
+# kubernetes-manifests/kustomization.yaml via an auto-merged PR -> ArgoCD syncs.
+#
+# Loop prevention: this workflow only triggers on changes under src/**. The
+# write-back commit touches only kubernetes-manifests/** (and carries [skip ci]),
+# so it never re-triggers a build.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+
+permissions:
+  contents: read
+  id-token: write        # required for AWS OIDC
+
+concurrency:
+  group: build-and-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+  AWS_ROLE_ARN: arn:aws:iam::209822909485:role/github-actions-online-boutique
+  ECR_REGISTRY: 209822909485.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  # ---------------------------------------------------------------------------
+  detect:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}   # JSON array of changed service names
+      any: ${{ steps.any.outputs.any }}
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: sha
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            adservice: 'src/adservice/**'
+            cartservice: 'src/cartservice/**'
+            checkoutservice: 'src/checkoutservice/**'
+            currencyservice: 'src/currencyservice/**'
+            emailservice: 'src/emailservice/**'
+            frontend: 'src/frontend/**'
+            paymentservice: 'src/paymentservice/**'
+            productcatalogservice: 'src/productcatalogservice/**'
+            recommendationservice: 'src/recommendationservice/**'
+            shippingservice: 'src/shippingservice/**'
+      - id: any
+        run: |
+          if [ "${{ steps.filter.outputs.changes }}" = "[]" ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build & push (${{ matrix.service }})
+    needs: detect
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve build context
+        id: ctx
+        run: |
+          if [ "${{ matrix.service }}" = "cartservice" ]; then
+            echo "context=src/cartservice/src" >> "$GITHUB_OUTPUT"
+          else
+            echo "context=src/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.ctx.outputs.context }}
+          push: true
+          provenance: false
+          tags: ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ needs.detect.outputs.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: GitOps write-back
+    needs: [detect, build]
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITOPS_PAT }}   # PAT so the PR can satisfy branch protection
+
+      - name: Install kustomize
+        run: |
+          curl -sfL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Bump image tags
+        run: |
+          cd kubernetes-manifests
+          for svc in $(echo '${{ needs.detect.outputs.services }}' | jq -r '.[]'); do
+            kustomize edit set image \
+              "${ECR_REGISTRY}/${svc}=${ECR_REGISTRY}/${svc}:${{ needs.detect.outputs.sha }}"
+          done
+          echo "----- resulting images: block -----"
+          sed -n '/^images:/,$p' kustomization.yaml
+
+      - name: Open auto-merge PR
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITOPS_PAT }}
+          commit-message: "deploy: bump image tags to ${{ needs.detect.outputs.sha }} [skip ci]"
+          branch: gitops/deploy-${{ needs.detect.outputs.sha }}
+          delete-branch: true
+          title: "deploy: ${{ needs.detect.outputs.sha }} (${{ join(fromJson(needs.detect.outputs.services), ', ') }})"
+          body: |
+            Automated GitOps image-tag bump.
+
+            - Commit: ${{ github.sha }}
+            - Services: `${{ needs.detect.outputs.services }}`
+            - New tag: `${{ needs.detect.outputs.sha }}`
+
+            ArgoCD will sync once this is merged.
+          labels: automated, deploy
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_PAT }}
+        run: gh pr merge --squash --auto "${{ steps.cpr.outputs.pull-request-number }}"

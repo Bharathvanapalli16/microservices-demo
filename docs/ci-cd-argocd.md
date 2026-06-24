@@ -198,19 +198,38 @@ Because every deploy is a Git commit with an immutable SHA tag:
 
 ## 13. Implementation plan (phased)
 
-- [ ] **Phase 0 — Refactor:** move image tags into
-      `kubernetes-manifests/kustomization.yaml` `images:` block; verify ArgoCD
-      still syncs cleanly.
-- [ ] **Phase 1 — AWS:** create OIDC provider + scoped IAM role; confirm ECR
-      repos exist for all services.
-- [ ] **Phase 2 — Build CI:** add `.github/workflows/build.yml` with change
-      detection, per-service build/test, and ECR push tagged by SHA.
-- [ ] **Phase 3 — Write-back:** add the tag-bump-and-commit job; confirm the
-      loop-prevention path filter works.
+- [x] **Phase 0 — Refactor:** image tags centralized in
+      `kubernetes-manifests/kustomization.yaml` `images:` block; ArgoCD renders
+      identically. (merged)
+- [x] **Phase 1 — AWS:** OIDC provider + role
+      `github-actions-online-boutique` (trust scoped to
+      `repo:Bharathvanapalli16/microservices-demo:*`, inline `ecr-push`
+      policy) created; all 10 ECR repos already exist.
+- [x] **Phase 2 — Build CI:** `.github/workflows/build.yml` `build` job —
+      path-filtered change detection (`dorny/paths-filter`), per-service matrix,
+      OIDC auth, `docker build` + push to ECR tagged with the short SHA.
+- [x] **Phase 3 — Write-back:** `deploy` job — `kustomize edit set image` for
+      each built service, then an auto-merged PR (`peter-evans/create-pull-request`
+      + `gh pr merge --auto`). Loop-prevented by the `src/**` path filter +
+      `[skip ci]`.
 - [ ] **Phase 4 — Verify end-to-end:** push a trivial `src/frontend` change,
-      watch CI build → push → commit → ArgoCD sync → new pod running.
-- [ ] **Phase 5 — Hardening (later):** image scanning, PR-based build checks,
-      staging/prod overlays, persistent ingress/iptables on the host.
+      watch CI build → push → write-back PR → merge → ArgoCD sync → new pod.
+- [ ] **Phase 5 — Hardening (later):** per-language unit tests in CI, image
+      scanning, PR-based build checks, staging/prod overlays.
+
+### Required GitHub configuration (one-time, manual)
+
+The non-secret values (role ARN, region, registry) are hardcoded in the
+workflow `env:`. Only two things must be set in the repo by hand:
+
+1. **Secret `GITOPS_PAT`** — a fine-grained PAT for this repo with
+   `contents:write` + `pull_requests:write`. Used to check out, open the
+   write-back PR, and enable auto-merge (the default `GITHUB_TOKEN` can't push
+   to protected `main` or satisfy protection).
+   *Settings → Secrets and variables → Actions → New repository secret.*
+2. **Enable "Allow auto-merge"** — *Settings → General → Pull Requests.*
+   Also ensure branch protection on `main` lets the PAT user's PR merge once
+   checks pass (no blocking required-reviewer that the bot can't satisfy).
 
 ## 14. Open items
 
