@@ -15,45 +15,44 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
- - adservice.yaml
- - cartservice.yaml
- - checkoutservice.yaml
- - currencyservice.yaml
- - emailservice.yaml
- - frontend.yaml
-# - loadgenerator.yaml # During development, the loadgenerator module inside skaffold.yaml will be used.
- - paymentservice.yaml
- - productcatalogservice.yaml
- - recommendationservice.yaml
- - shippingservice.yaml
- - frontend-ingress.yaml
-
+  - adservice.yaml
+  - cartservice.yaml
+  - checkoutservice.yaml
+  - currencyservice.yaml
+  - emailservice.yaml
+  - frontend.yaml
+  # - loadgenerator.yaml # During development, the loadgenerator module inside skaffold.yaml will be used.
+  - paymentservice.yaml
+  - productcatalogservice.yaml
+  - recommendationservice.yaml
+  - shippingservice.yaml
+  - frontend-ingress.yaml
 # Image tags are managed HERE as the single source of truth for GitOps.
 # CI updates a service's tag with:
 #   kustomize edit set image <name>=<name>:<git-sha>
 # (registry: 209822909485.dkr.ecr.ap-south-1.amazonaws.com). redis/busybox are
 # intentionally omitted — they are not built by our pipeline.
 images:
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/adservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/cartservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/checkoutservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/currencyservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/emailservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/frontend
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/paymentservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/productcatalogservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/recommendationservice
-   newTag: v0.10.5
- - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/shippingservice
-   newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/adservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/cartservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/checkoutservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/currencyservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/emailservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/frontend
+    newTag: f159dc4
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/paymentservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/productcatalogservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/recommendationservice
+    newTag: v0.10.5
+  - name: 209822909485.dkr.ecr.ap-south-1.amazonaws.com/shippingservice
+    newTag: v0.10.5
 # components:
 # - ../kustomize/components/cymbal-branding
 # - ../kustomize/components/google-cloud-operations
